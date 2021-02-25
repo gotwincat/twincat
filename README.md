@@ -1,6 +1,6 @@
 <h1 align="center">Twincat</h1>
 
-A native Go implementation of the [Beckhoff Twincat V3 protocol](https://infosys.beckhoff.com/english.php?content=../content/1033/tc3_adsnetref/7312567947.html&id=).
+A native Go implementation of the [Beckhoff Twincat V3 protocol](https://infosys.beckhoff.com/english.php?content=../content/1033/tc3_ads_intro/9007199370585355.html&id=5715858820912388848).
 
 [![CircleCI](https://circleci.com/gh/gotwincat/twincat.svg?style=shield)](https://circleci.com/gh/gotwincat/twincat)
 [![GoDoc](https://godoc.org/github.com/gotwincat/twincat?status.svg)](https://godoc.org/github.com/gotwincat/twincat)
