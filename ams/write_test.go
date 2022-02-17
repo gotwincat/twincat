@@ -1,6 +1,31 @@
 package ams
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/pascaldekloe/goe/verify"
+)
+
+func TestNewWriteRequest(t *testing.T) {
+	got := NewWriteRequest(target, sender, 0x1, 0x2, []byte{0x3, 0x4, 0x5})
+	want := &WriteRequest{
+		tcpHeader: TCPHeader{
+			Length: amsHeaderLen + 15,
+		},
+		amsHeader: AMSHeader{
+			Target:     target,
+			Sender:     sender,
+			CmdID:      CmdADSWrite,
+			StateFlags: StateADSCommand,
+			Length:     15,
+		},
+		IndexGroup:  0x1,
+		IndexOffset: 0x2,
+		Length:      0x3,
+		Data:        []byte{0x3, 0x4, 0x5},
+	}
+	verify.Values(t, "", got, want)
+}
 
 func TestWrite(t *testing.T) {
 	tests := []struct {

@@ -12,6 +12,9 @@ import (
 )
 
 var (
+	target = MustParseAddr("1.2.3.4.5.6:1234")
+	sender = MustParseAddr("5.6.7.8.9.0:5678")
+
 	tcpHeader = TCPHeader{
 		Reserved: 0x1234,
 		Length:   0x12345678,
@@ -22,8 +25,8 @@ var (
 	}
 
 	amsHeader = AMSHeader{
-		Target:     MustParseAddr("1.2.3.4.5.6:1234"),
-		Sender:     MustParseAddr("5.6.7.8.9.0:5678"),
+		Target:     target,
+		Sender:     sender,
 		CmdID:      0x1234,
 		StateFlags: 0x5678,
 		Length:     0x12345678,
