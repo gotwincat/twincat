@@ -86,7 +86,7 @@ func (buf *Buffer) ReadFloat32Slice(n int) []float32 {
 	}
 	fa := make([]float32, len(a))
 	for i := range a {
-		fa[i] = math.Float32frombits(a[9])
+		fa[i] = math.Float32frombits(a[i])
 	}
 	return fa
 }
@@ -112,7 +112,7 @@ func (buf *Buffer) ReadUint32Slice(n int) []uint32 {
 	if buf.err != nil {
 		return nil
 	}
-	a := make([]uint32, 4*n)
+	a := make([]uint32, n)
 	for i := range a {
 		a[i] = buf.ReadUint32()
 	}
