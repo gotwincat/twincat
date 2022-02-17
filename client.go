@@ -32,11 +32,33 @@ type Client struct {
 
 	mu      sync.Mutex
 	handler map[uint32]chan ams.Response
+
+	adsState    atomic.Value // uint16
+	deviceState atomic.Value // uint16
+}
+
+func (c *Client) ADSState() uint16 {
+	return c.adsState.Load().(uint16)
+}
+
+func (c *Client) SetADSState(s uint16) {
+	c.adsState.Store(s)
+}
+
+func (c *Client) DeviceState() uint16 {
+	return c.deviceState.Load().(uint16)
+}
+
+func (c *Client) SetDeviceState(s uint16) {
+	c.deviceState.Store(s)
 }
 
 // Dial connects to a Twincat server.
 func (c *Client) Dial(ctx context.Context) error {
 	atomic.AddUint32(&c.nextInvokeID, 1)
+
+	c.SetADSState(ams.ADSStateStart)
+	c.SetDeviceState(ams.ADSStateStart)
 
 	d := &net.Dialer{}
 	conn, err := d.DialContext(ctx, "tcp", c.Addr)
@@ -61,6 +83,11 @@ type responseDecoder interface {
 }
 
 func (c *Client) receive(ctx context.Context) error {
+	c.SetADSState(ams.ADSStateRun)
+	c.SetDeviceState(ams.ADSStateRun)
+	defer c.SetADSState(ams.ADSStateStop)
+	defer c.SetDeviceState(ams.ADSStateStop)
+
 	// We assume that a packet fits into a single packet.
 	// This is probably wrong but I haven't found anything on length
 	// would probably have to read the header first, alloc and then read
@@ -85,64 +112,101 @@ func (c *Client) receive(ctx context.Context) error {
 			return err
 		}
 
-		// figure out the response type
-		var resp responseDecoder
+		// figure out the packet type
+		var pkt packet
 		switch {
 		case ams.IsReadResponse(hdr.AMSHeader):
-			resp = &ams.ReadResponse{}
+			pkt = &ams.ReadResponse{}
 		case ams.IsWriteResponse(hdr.AMSHeader):
-			resp = &ams.WriteResponse{}
+			pkt = &ams.WriteResponse{}
 		case ams.IsReadWriteResponse(hdr.AMSHeader):
-			resp = &ams.ReadWriteResponse{}
-		}
-
-		// decode the full response with the header
-		if err := resp.Decode(ams.NewBuffer(data)); err != nil {
-			log.Printf("client: failed to decode")
-			return err
-		}
-
-		// find the handler channel for packet
-		invokeID := hdr.AMSHeader.InvokeID
-		c.mu.Lock()
-		if c.handler == nil {
-			c.handler = make(map[uint32]chan ams.Response)
-		}
-		h := c.handler[invokeID]
-		delete(c.handler, invokeID)
-		c.mu.Unlock()
-
-		// if there is no handler then drop the packet
-		if h == nil {
-			log.Printf("client: no handler for %d", invokeID)
+			pkt = &ams.ReadWriteResponse{}
+		case ams.IsReadStateRequest(hdr.AMSHeader):
+			pkt = &ams.ReadStateRequest{}
+		default:
+			log.Printf("client: unknown packet: %#v", hdr)
 			continue
 		}
 
-		// otherwise send the response to the handler.
-		// here we assume that h is buffered and can hold
-		// one response. So this call should never block.
-		select {
-		case <-ctx.Done():
-		case h <- resp:
-			close(h)
+		// decode the full packet with the header
+		if err := pkt.Decode(ams.NewBuffer(data)); err != nil {
+			log.Printf("client: failed to decode: %s", err)
+			return err
+		}
+
+		switch req := pkt.(type) {
+		// handle incoming requests
+		case *ams.ReadStateRequest:
+			if err := c.handleReadStateRequest(ctx, req); err != nil {
+				return err
+			}
+
+		// forward responses to handlers
+		default:
+			// find the handler channel for packet
+			invokeID := hdr.AMSHeader.InvokeID
+			c.mu.Lock()
+			if c.handler == nil {
+				c.handler = make(map[uint32]chan ams.Response)
+			}
+			h := c.handler[invokeID]
+			delete(c.handler, invokeID)
+			c.mu.Unlock()
+
+			// if there is no handler then drop the packet
+			if h == nil {
+				log.Printf("client: no handler for %d", invokeID)
+				continue
+			}
+
+			// otherwise send the response to the handler.
+			// here we assume that h is buffered and can hold
+			// one response. So this call should never block.
+			select {
+			case <-ctx.Done():
+			case h <- pkt:
+				close(h)
+			}
 		}
 	}
 }
 
-type requestEncoder interface {
-	ams.Request
-	ams.Encoder
+func (c *Client) handleReadStateRequest(ctx context.Context, req *ams.ReadStateRequest) error {
+	hdr := req.Header()
+	resp := ams.NewReadStateResponse(hdr.Sender, hdr.Target, ams.NoError, c.ADSState(), c.DeviceState())
+	return c.sendResponse(ctx, req, resp)
+}
+
+type packet interface {
+	Header() *ams.AMSHeader
+	Decode(b *ams.Buffer) error
+	Encode(b *ams.Buffer) error
+}
+
+func (c *Client) sendResponse(ctx context.Context, req ams.Request, pkt packet) error {
+	// set the invoke id from the request
+	pkt.Header().InvokeID = req.Header().InvokeID
+
+	// encode the response
+	var b ams.Buffer
+	if err := pkt.Encode(&b); err != nil {
+		return err
+	}
+
+	// send the response
+	_, err := c.conn.Write(b.Bytes())
+	return err
 }
 
 // send sends a request to the server and sets up a handler channel
 // for the callback.
-func (c *Client) send(ctx context.Context, req requestEncoder, cb func(ams.Response) error) error {
+func (c *Client) send(ctx context.Context, pkt packet, cb func(ams.Response) error) error {
 	// set a unique invoke id for the request
-	req.Header().InvokeID = atomic.AddUint32(&c.nextInvokeID, 1)
+	pkt.Header().InvokeID = atomic.AddUint32(&c.nextInvokeID, 1)
 
 	// encode the request
 	var b ams.Buffer
-	if err := req.Encode(&b); err != nil {
+	if err := pkt.Encode(&b); err != nil {
 		return err
 	}
 
@@ -157,14 +221,14 @@ func (c *Client) send(ctx context.Context, req requestEncoder, cb func(ams.Respo
 	if c.handler == nil {
 		c.handler = make(map[uint32]chan ams.Response)
 	}
-	c.handler[req.Header().InvokeID] = h
+	c.handler[pkt.Header().InvokeID] = h
 	c.mu.Unlock()
 
 	// send the request
 	_, err := c.conn.Write(b.Bytes())
 	if err != nil {
 		c.mu.Lock()
-		delete(c.handler, req.Header().InvokeID)
+		delete(c.handler, pkt.Header().InvokeID)
 		c.mu.Unlock()
 		return err
 	}
