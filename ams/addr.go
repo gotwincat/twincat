@@ -11,7 +11,7 @@ import (
 )
 
 // reAddr is used for parsing a Twincat NetID.
-var reAddr = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)\.(\d+)\.(\d+)\.(\d+):(\d+)`)
+var reAddr = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)\.(\d+)\.(\d+)\.(\d+):(\d+)$`)
 
 // Addr describes a Twincat NetID and port.
 type Addr struct {
