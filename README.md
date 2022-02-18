@@ -55,6 +55,7 @@ but try to create an issue first.
 | Request            | Supported | Notes |
 |--------------------|-----------|-------|
 | Read               | Yes       |       |
+| ReadState          | Yes       |       |
 | ReadWrite          | Yes       |       |
 | Write              | Yes       |       |
 | GetSymHandleByName | Yes       |       |

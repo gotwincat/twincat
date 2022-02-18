@@ -58,7 +58,7 @@ type ReadResponse struct {
 	tcpHeader TCPHeader
 	amsHeader AMSHeader
 	Result    uint32
-	CBLength  uint32
+	Length    uint32
 	Data      []byte
 }
 
@@ -70,8 +70,8 @@ func (r *ReadResponse) Encode(b *Buffer) error {
 	b.WriteStruct(&r.tcpHeader)
 	b.WriteStruct(&r.amsHeader)
 	b.WriteUint32(r.Result)
-	b.WriteUint32(r.CBLength)
-	b.WriteN(r.Data, r.CBLength)
+	b.WriteUint32(r.Length)
+	b.WriteN(r.Data, r.Length)
 	return b.Err()
 }
 
@@ -79,8 +79,8 @@ func (r *ReadResponse) Decode(b *Buffer) error {
 	b.ReadStruct(&r.tcpHeader)
 	b.ReadStruct(&r.amsHeader)
 	r.Result = b.ReadUint32()
-	r.CBLength = b.ReadUint32()
-	r.Data = b.ReadN(int(r.CBLength))
+	r.Length = b.ReadUint32()
+	r.Data = b.ReadN(int(r.Length))
 	return b.Err()
 }
 

@@ -63,6 +63,27 @@ const (
 	PortTC3PLCRuntimeSystem1 = 851
 )
 
+// https://infosys.beckhoff.com/english.php?content=../content/1033/tc3_adsdll2/117555851.html&id=
+const (
+	ADSStateInvalid      = 0
+	ADSStateIdle         = 1
+	ADSStateReset        = 2
+	ADSStateInit         = 3
+	ADSStateStart        = 4
+	ADSStateRun          = 5
+	ADSStateStop         = 6
+	ADSStateSaveConfig   = 7
+	ADSStateLoadConfig   = 8
+	ADSStatePowerFailure = 9
+	ADSStatePowerGood    = 10
+	ADSStateError        = 11
+	ADSStateShutdown     = 12
+	ADSStateSuspend      = 13
+	ADSStateResume       = 14
+	ADSStateConfig       = 15 // system is in config mode
+	ADSStateReconfig     = 16 // system should restart in config mode
+)
+
 // HasState returns true if the StateFlags in the header
 // has the provided flags set.
 func HasState(h AMSHeader, flag uint16) bool {
